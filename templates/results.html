@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Simulation Results</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    .preview-window { max-height: 420px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 0.75rem; background: #fff; }
+    .preview-window table { margin-bottom: 0; white-space: nowrap; }
+    .chart-scroll { overflow-x: auto; }
+    .wide-chart { min-width: 1200px; height: 360px; }
+    .section-header-inline { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    .metric-card { height: 100%; }
+  </style>
+</head>
+<body style="background:#f4f6f9;">
+  <div class="container py-4">
+    <div class="row align-items-center mb-4">
+      <div class="col-md-8">
+        <h1 class="fw-bold mb-1" style="font-size:2.1rem;">Appointment Scheduling Dashboard</h1>
+        <p class="text-muted mb-0">See how demand, capacity, and queue buildup interact across the simulation day by day. Track daily queue flow, access delays, and slot utilization in one clearer results view. A day-by-day view of how patients move through scheduling, waiting, and care completion. Explore the simulation through daily queue patterns, access outcomes, and capacity tradeoffs.</p>
+      </div>
+      <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <a class="btn btn-outline-secondary me-2" href="/">Back</a>
+        <a class="btn btn-outline-primary me-2" href="/archive">Archive</a>
+        <a class="btn btn-success" href="/archive/{{ run_id }}/download">Download CSV</a>
+      </div>
+    </div>
+
+    <ul class="nav nav-tabs mb-3" id="resultsTabs" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#summary-pane" type="button">Results Summary</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sensitivity-pane" type="button">What-If Analysis</button></li>
+    </ul>
+
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="summary-pane">
+        <div class="row g-3 mb-4">
+          <div class="col-md-3"><div class="card shadow-sm border-0 metric-card"><div class="card-body"><div class="text-muted text-uppercase small fw-semibold">Completion Rate</div><div class="fw-bold" style="font-size:2rem;">{{ (summary.completed_rate * 100) | round(1) }}%</div><div class="text-muted small">Patients who completed care</div></div></div></div>
+          <div class="col-md-3"><div class="card shadow-sm border-0 metric-card"><div class="card-body"><div class="text-muted text-uppercase small fw-semibold">Avg Access Delay</div><div class="fw-bold" style="font-size:2rem;">{{ (summary.access.mean_access_delay * 24 * 60) | round(0) }}</div><div class="text-muted small">Minutes from scheduling request to appointment</div></div></div></div>
+          <div class="col-md-3"><div class="card shadow-sm border-0 metric-card"><div class="card-body"><div class="text-muted text-uppercase small fw-semibold">P95 Access Delay</div><div class="fw-bold" style="font-size:2rem;">{{ (summary.access.request_to_appt_p95 * 24 * 60) | round(0) }} min</div><div class="text-muted small">95% of patients are seen within {{ summary.access.request_to_appt_p95 | round(2) }} days</div></div></div></div>
+          <div class="col-md-3"><div class="card shadow-sm border-0 metric-card"><div class="card-body"><div class="text-muted text-uppercase small fw-semibold">Mean Utilization</div><div class="fw-bold" style="font-size:2rem;">{{ (summary.access.mean_utilization * 100) | round(1) }}%</div><div class="text-muted small">Average slot fill rate</div></div></div></div>
+        </div>
+
+        <div class="alert alert-info"><b>Interpretation:</b> patients now enter the queue on the day they actually secure scheduling, so the backlog chart lines up better with the modeled process.</div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-12"><div class="card p-3 shadow-sm border-0">
+            <div class="section-header-inline mb-2"><div class="text-muted">Daily demand, used slots, available slots, and queue end</div><div class="small text-muted">Scroll horizontally for the full day-by-day view</div></div>
+            <div class="chart-scroll"><div class="wide-chart"><canvas id="accessFlowChart"></canvas></div></div>
+          </div></div>
+          <div class="col-lg-6"><div class="card p-3 shadow-sm border-0"><div class="text-muted">Average access delay by population</div><div style="height: 280px;" class="mt-2"><canvas id="accessDelayByPop"></canvas></div></div></div>
+          <div class="col-lg-6"><div class="card p-3 shadow-sm border-0"><div class="text-muted">Completion rate by population</div><div style="height: 280px;" class="mt-2"><canvas id="completionByPop"></canvas></div></div></div>
+        </div>
+
+        <h4 class="mb-2">By population</h4>
+        <div class="card p-3 shadow-sm border-0 mb-4"><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Population</th><th>N</th><th>Scheduled rate</th><th>Completion rate</th><th>Avg access delay</th><th>Avg touchpoints</th><th>Avg total time</th></tr></thead><tbody>{% for r in summary.by_population %}<tr><td>{{ r.Population }}</td><td>{{ r.n }}</td><td>{{ (r.scheduled_rate * 100) | round(2) }}%</td><td>{{ (r.completion_rate * 100) | round(2) }}%</td><td>{{ r.avg_access_delay | round(2) }}</td><td>{{ r.avg_touchpoints | round(2) }}</td><td>{{ r.avg_total_time | round(2) }}</td></tr>{% endfor %}</tbody></table></div></div>
+
+        <div class="section-header-inline mb-2"><h4 class="mb-0">Daily access queue preview</h4><span class="small text-muted">{{ summary.access.days_simulated }} simulated days</span></div>
+        <div class="card p-3 shadow-sm border-0 mb-4"><div class="preview-window"><div class="table-responsive"><table class="table table-sm table-striped"><thead class="table-light" style="position: sticky; top: 0; z-index: 1;"><tr><th>Day</th><th>Demand</th><th>Available Slots</th><th>Used Slots</th><th>Unused Slots</th><th>Queue Start</th><th>Queue End</th><th>Utilization</th></tr></thead><tbody>{% for row in access_timeline %}<tr><td>{{ row.Day }}</td><td>{{ row.Demand }}</td><td>{{ row['Available Slots'] }}</td><td>{{ row['Used Slots'] }}</td><td>{{ row['Unused Slots'] }}</td><td>{{ row['Queue Start'] }}</td><td>{{ row['Queue End'] }}</td><td>{{ (row.Utilization * 100) | round(1) }}%</td></tr>{% endfor %}</tbody></table></div></div></div>
+      </div>
+
+      <div class="tab-pane fade" id="sensitivity-pane">
+        <div class="card p-3 shadow-sm border-0 mb-3"><h4 class="mb-2">What-If Analysis</h4><div class="text-muted">Each row keeps the same decision lever together. The decrease case and increase case are shown side by side, and tooltips show the exact scenario name.</div><div class="small text-muted mt-2">Units: access delay = days, completion = percentage points vs baseline, utilization = percentage points vs baseline.</div></div>
+        <div class="row g-3 mb-4">
+          <div class="col-lg-6"><div class="card p-3 shadow-sm border-0"><div class="text-muted">Change in average access delay vs baseline (days)</div><div style="height: 340px;" class="mt-2"><canvas id="sensitivityAccessChart"></canvas></div></div></div>
+          <div class="col-lg-6"><div class="card p-3 shadow-sm border-0"><div class="text-muted">Change in utilization vs baseline (percentage points)</div><div style="height: 340px;" class="mt-2"><canvas id="sensitivityUtilChart"></canvas></div></div></div>
+          <div class="col-lg-6"><div class="card p-3 shadow-sm border-0"><div class="text-muted">Change in completion rate vs baseline (percentage points)</div><div style="height: 340px;" class="mt-2"><canvas id="sensitivityCompletionChart"></canvas></div></div></div>
+          <div class="col-lg-6"><div class="card p-3 shadow-sm border-0"><div class="text-muted">Exact what-if levels for average access delay (days)</div><div style="height: 340px;" class="mt-2"><canvas id="whatIfTripletChart"></canvas></div></div></div>
+        </div>
+        <div class="card p-3 shadow-sm border-0 mb-4"><div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>Category</th><th>Scenario</th><th>Completion Rate (%)</th><th>Δ Completion (pts)</th><th>Avg Access Delay (days)</th><th>Δ Access Delay (days)</th><th>Mean Utilization (%)</th><th>Δ Utilization (pts)</th><th>Avg Total Time (days)</th><th>Δ Time (days)</th></tr></thead><tbody>{% for s in sensitivity %}<tr class="{% if s.category == 'Baseline' %}table-primary{% endif %}"><td>{{ s.category }}</td><td>{{ s.scenario }}</td><td>{{ (s.completed_rate * 100) | round(2) }}%</td><td class="{% if s.delta_completion > 0 %}text-success{% elif s.delta_completion < 0 %}text-danger{% endif %}">{{ (s.delta_completion * 100) | round(2) }} pts</td><td>{{ s.avg_access_delay | round(2) }}</td><td class="{% if s.delta_access_delay < 0 %}text-success{% elif s.delta_access_delay > 0 %}text-danger{% endif %}">{{ s.delta_access_delay | round(2) }}</td><td>{{ (s.mean_utilization * 100) | round(1) }}%</td><td class="{% if s.delta_utilization < 0 %}text-success{% elif s.delta_utilization > 0 %}text-danger{% endif %}">{{ (s.delta_utilization * 100) | round(2) }} pts</td><td>{{ s.avg_total_time | round(2) }}</td><td class="{% if s.delta_time < 0 %}text-success{% elif s.delta_time > 0 %}text-danger{% endif %}">{{ s.delta_time | round(2) }}</td></tr>{% endfor %}</tbody></table></div></div>
+      </div>
+    </div>
+  </div>
+
+  <script>const SUMMARY = {{ summary | tojson }}; const SENSITIVITY = {{ sensitivity | tojson }};</script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="{{ url_for('static', filename='results.js') }}"></script>
+</body>
+</html>
